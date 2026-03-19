@@ -1,1 +1,15 @@
-
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>DuckBar</title>
+        <item>
+            <title>0.1.0</title>
+            <pubDate>Thu, 19 Mar 2026 11:26:05 +0900</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://rofeels.github.io/duckbar/DuckBar-0.1.0.zip" length="1421246" type="application/octet-stream" sparkle:edSignature="EEyIRoJiCvH3okPktyj1P3QC9ruDYuQfAviJ4oqcFHQkPhc/1TWB8DByBnbe3Dss69fYQblph52c3T6FxccLCw=="/>
+        </item>
+    </channel>
+</rss>
