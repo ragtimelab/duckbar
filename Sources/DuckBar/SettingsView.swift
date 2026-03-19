@@ -342,7 +342,7 @@ struct SettingsView: View {
         if let name = special[code] { return name }
 
         // 나머지: UCKeyTranslate로 현재 키보드 레이아웃에서 자동 변환
-        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+        guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
               let rawPtr = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
             return "Key \(code)"
         }
