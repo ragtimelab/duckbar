@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Sparkle
+@preconcurrency import HotKey
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -17,8 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var animationTimer: Timer?
     private var currentAnimationFrame: Int = 0
     private var animationDirection: Int = 1
-    private var globalHotkeyMonitor: Any?
-    private var localHotkeyMonitor: Any?
+    private var hotKey: HotKey?
     private var recordingMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -98,8 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.stop()
         updateTimer?.invalidate()
         animationTimer?.invalidate()
-        if let monitor = globalHotkeyMonitor { NSEvent.removeMonitor(monitor) }
-        if let monitor = localHotkeyMonitor { NSEvent.removeMonitor(monitor) }
+        hotKey = nil
     }
 
     @objc private func resizePopover() {
@@ -111,11 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func startRecordingHotkey() {
-        // 녹음 중에는 기존 핫키 모니터 해제
-        if let monitor = globalHotkeyMonitor { NSEvent.removeMonitor(monitor) }
-        if let monitor = localHotkeyMonitor { NSEvent.removeMonitor(monitor) }
-        globalHotkeyMonitor = nil
-        localHotkeyMonitor = nil
+        // 녹음 중에는 기존 핫키 해제
+        hotKey = nil
 
         recordingMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -140,7 +136,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let keyCode {
             settings.hotkeyCode = keyCode
-            settings.hotkeyModifiers = modifiers.intersection(.deviceIndependentFlagsMask).rawValue
+            settings.hotkeyModifiers = modifiers.intersection(.deviceIndependentFlagsMask)
+                .subtracting(.function).rawValue
         }
         setupHotkey()
         NotificationCenter.default.post(name: .init("HotkeyRecorded"), object: nil)
@@ -152,33 +149,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupHotkey() {
-        // 기존 모니터 제거
-        if let monitor = globalHotkeyMonitor { NSEvent.removeMonitor(monitor) }
-        if let monitor = localHotkeyMonitor { NSEvent.removeMonitor(monitor) }
+        hotKey = nil
 
         let keyCode = settings.hotkeyCode
-        let requiredModifiers = NSEvent.ModifierFlags(rawValue: settings.hotkeyModifiers)
+        guard keyCode != 0 || settings.hotkeyModifiers != 0 else { return }
+
+        let modifiers = NSEvent.ModifierFlags(rawValue: settings.hotkeyModifiers)
             .intersection(.deviceIndependentFlagsMask)
+            .subtracting(.function) // Fn 플래그 제거 (function 키 녹음 시 불필요하게 포함됨)
 
-        globalHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let eventMods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if event.keyCode == keyCode && eventMods == requiredModifiers {
-                Task { @MainActor in
-                    self?.togglePopover()
-                }
+        let hk = HotKey(carbonKeyCode: UInt32(keyCode), carbonModifiers: modifiers.carbonFlags)
+        hk.keyDownHandler = { [weak self] in
+            Task { @MainActor in
+                self?.togglePopover()
             }
         }
-
-        localHotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let eventMods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if event.keyCode == keyCode && eventMods == requiredModifiers {
-                Task { @MainActor in
-                    self?.togglePopover()
-                }
-                return nil
-            }
-            return event
-        }
+        hotKey = hk
     }
 
     @objc private func statusItemClicked() {

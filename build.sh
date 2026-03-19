@@ -29,7 +29,9 @@ cp Resources/AppIcon.icns "$APP_BUNDLE/Contents/Resources/"
 
 # Copy Sparkle.framework
 mkdir -p "$APP_BUNDLE/Contents/Frameworks"
-cp -R .build/arm64-apple-macosx/release/Sparkle.framework "$APP_BUNDLE/Contents/Frameworks/"
+ARCH=$(uname -m)
+[[ "$ARCH" == "x86_64" ]] && TRIPLE="x86_64-apple-macosx" || TRIPLE="arm64-apple-macosx"
+cp -R ".build/${TRIPLE}/release/Sparkle.framework" "$APP_BUNDLE/Contents/Frameworks/"
 
 # rpath 추가 (Sparkle.framework 로딩 경로)
 install_name_tool -add_rpath "@loader_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
