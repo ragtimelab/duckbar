@@ -271,9 +271,7 @@ struct StatusMenuView: View {
     private var chartToggleView: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showChart.toggle()
-                }
+                showChart.toggle()
             }) {
                 HStack {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -293,13 +291,12 @@ struct StatusMenuView: View {
             }
             .buttonStyle(.plain)
 
-            if showChart {
-                TokenChartView(
-                    hourlyData: monitor.usageStats.hourlyData,
-                    fontScale: s
-                )
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+            TokenChartView(
+                hourlyData: monitor.usageStats.hourlyData,
+                fontScale: s
+            )
+            .frame(height: showChart ? nil : 0, alignment: .top)
+            .clipped()
         }
     }
 
