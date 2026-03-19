@@ -97,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateTimer?.invalidate()
         animationTimer?.invalidate()
         hotKey = nil
+        DistributedNotificationCenter.default().removeObserver(self)
     }
 
     @objc private func hotkeyChanged() {
@@ -109,7 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         recordingMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
-            if event.keyCode == 53 && event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
+            let significantMods = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if event.keyCode == 53 && significantMods.isEmpty {
                 self.finishRecording(keyCode: nil)
                 return nil
             }

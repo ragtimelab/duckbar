@@ -195,7 +195,7 @@ final class AppSettings {
         if let raw = defaults.object(forKey: "hotkeyCode") as? Int {
             hotkeyCode = UInt16(raw)
         } else {
-            hotkeyCode = 80  // F19
+            hotkeyCode = 0  // 미설정
         }
 
         if let raw = defaults.object(forKey: "hotkeyModifiers") as? UInt {

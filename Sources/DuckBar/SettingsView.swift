@@ -4,8 +4,7 @@ import CoreServices
 
 // MARK: - Reusable Segment Picker
 
-struct SegmentButton<T: Hashable>: View {
-    let item: T
+struct SegmentButton: View {
     let isSelected: Bool
     let title: String
     let fontSize: CGFloat
@@ -82,7 +81,7 @@ struct SettingsView: View {
 
                         HStack(spacing: 6) {
                             ForEach(AppLanguage.allCases, id: \.rawValue) { lang in
-                                SegmentButton(item: lang, isSelected: settings.language == lang,
+                                SegmentButton(isSelected: settings.language == lang,
                                               title: lang.displayName, fontSize: 12, padding: 6) {
                                     settings.language = lang
                                 }
@@ -107,7 +106,7 @@ struct SettingsView: View {
 
                         HStack(spacing: 6) {
                             ForEach(PopoverSize.allCases, id: \.rawValue) { size in
-                                SegmentButton(item: size, isSelected: settings.popoverSize == size,
+                                SegmentButton(isSelected: settings.popoverSize == size,
                                               title: size.displayName, fontSize: 12, padding: 6) {
                                     settings.popoverSize = size
                                 }
@@ -237,7 +236,7 @@ struct SettingsView: View {
                         let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
                         LazyVGrid(columns: columns, spacing: 6) {
                             ForEach(RefreshInterval.allCases, id: \.rawValue) { interval in
-                                SegmentButton(item: interval, isSelected: settings.refreshInterval == interval,
+                                SegmentButton(isSelected: settings.refreshInterval == interval,
                                               title: interval.displayName, fontSize: 11, padding: 5) {
                                     settings.refreshInterval = interval
                                 }
@@ -323,9 +322,9 @@ struct SettingsView: View {
         // 비인쇄 키만 하드코딩
         let special: [UInt16: String] = [
             // Function keys (UCKeyTranslate가 PUA 문자를 반환하므로 직접 매핑)
-            62: "F1", 63: "F2", 64: "F3", 65: "F4", 66: "F5", 67: "F6",
-            68: "F7", 69: "F8", 70: "F9", 71: "F10", 72: "F11", 73: "F12",
-            74: "F13", 75: "F14", 76: "F15", 77: "F16", 78: "F17", 79: "F18", 80: "F19",
+            122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6",
+            98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12",
+            105: "F13", 107: "F14", 113: "F15", 106: "F16", 64: "F17", 79: "F18", 80: "F19",
             // 특수 키
             36: "↩", 48: "⇥", 49: "Space", 51: "⌫", 53: "Esc", 117: "⌦",
             // 방향 키
