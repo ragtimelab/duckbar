@@ -10,7 +10,13 @@ echo "=== DuckBar Build ==="
 
 # 1. Build Swift Package
 echo "[1/4] Compiling..."
-swift build -c release 2>&1
+if [[ "$1" == "--release" ]]; then
+    # Release: Universal Binary (arm64 + x86_64)
+    swift build -c release --arch arm64 --arch x86_64 2>&1
+else
+    # Development: native architecture only
+    swift build -c release 2>&1
+fi
 
 # 2. Create app bundle structure
 echo "[2/4] Creating app bundle..."
@@ -19,7 +25,11 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 # Copy binary
-cp .build/release/DuckBar "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+if [[ "$1" == "--release" ]]; then
+    cp .build/apple/Products/Release/DuckBar "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+else
+    cp .build/release/DuckBar "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+fi
 
 # Copy Info.plist
 cp Resources/Info.plist "$APP_BUNDLE/Contents/"
