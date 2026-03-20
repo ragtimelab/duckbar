@@ -239,7 +239,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popoverManager.toggle(relativeTo: button, withSize: size)
 
         if popoverManager.isShown {
-            popoverManager.popover.contentViewController?.view.window?.makeKey()
+            DispatchQueue.main.async {
+                self.popoverManager.popover.contentViewController?.view.window?.makeKey()
+            }
             Task {
                 await monitor.refreshAsync()
             }
