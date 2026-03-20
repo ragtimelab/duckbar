@@ -112,6 +112,13 @@ The following can be displayed in real time on the menu bar (customizable via Se
 - **English**: Available as an option
 - Menus, status bar, popover, and settings screen all support multiple languages
 
+## Installation (Homebrew)
+
+```bash
+brew tap rofeels/duckbar https://github.com/rofeels/duckbar
+brew install --cask duckbar
+```
+
 ## Build (For Developers)
 
 ```bash
