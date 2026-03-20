@@ -155,44 +155,50 @@ struct SettingsView: View {
                         Spacer()
 
                         if isRecordingHotkey {
-                            Text(L.hotkeyRecord)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.orange)
-                                .padding(.vertical, 5)
-                                .padding(.horizontal, 12)
-                                .background(
-                                    Capsule()
-                                        .strokeBorder(Color.orange, lineWidth: 1.5)
-                                )
-                                .onTapGesture {
-                                    isRecordingHotkey = false
-                                    NotificationCenter.default.post(name: .stopRecordingHotkey, object: nil)
-                                }
+                            Button(action: {
+                                isRecordingHotkey = false
+                                NotificationCenter.default.post(name: .stopRecordingHotkey, object: nil)
+                            }) {
+                                Text(L.hotkeyRecord)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.orange)
+                                    .padding(.vertical, 5)
+                                    .padding(.horizontal, 12)
+                                    .background(
+                                        Capsule()
+                                            .strokeBorder(Color.orange, lineWidth: 1.5)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         } else if settings.hotkeyCode == 0 && settings.hotkeyModifiers == 0 {
                             // 미설정 상태
-                            Text(L.setHotkey)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, 5)
-                                .padding(.horizontal, 14)
-                                .background(
-                                    Capsule()
-                                        .strokeBorder(Color.primary.opacity(0.2), lineWidth: 1)
-                                )
-                                .onTapGesture {
-                                    isRecordingHotkey = true
-                                    NotificationCenter.default.post(name: .startRecordingHotkey, object: nil)
-                                }
+                            Button(action: {
+                                isRecordingHotkey = true
+                                NotificationCenter.default.post(name: .startRecordingHotkey, object: nil)
+                            }) {
+                                Text(L.setHotkey)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 5)
+                                    .padding(.horizontal, 14)
+                                    .background(
+                                        Capsule()
+                                            .strokeBorder(Color.primary.opacity(0.2), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
                         } else {
                             // 설정된 상태
                             HStack(spacing: 4) {
-                                Text(hotkeyDisplayString())
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(.primary)
-                                    .onTapGesture {
-                                        isRecordingHotkey = true
-                                        NotificationCenter.default.post(name: .startRecordingHotkey, object: nil)
-                                    }
+                                Button(action: {
+                                    isRecordingHotkey = true
+                                    NotificationCenter.default.post(name: .startRecordingHotkey, object: nil)
+                                }) {
+                                    Text(hotkeyDisplayString())
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                }
+                                .buttonStyle(.plain)
 
                                 Button(action: {
                                     settings.hotkeyCode = 0
