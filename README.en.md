@@ -27,6 +27,7 @@ A macOS menu bar status app for real-time monitoring of Claude Code sessions. Vi
 ## Requirements
 
 - **macOS 14 (Sonoma)** or later
+- Supports both **Apple Silicon (arm64)** and **Intel (x86_64)**
 
 ## Installation
 
@@ -132,6 +133,7 @@ cp -r .build/app/DuckBar.app /Applications/
 ## Dependencies
 
 - **[Sparkle](https://sparkle-project.org)**: Automatic updates
+- **[HotKey](https://github.com/soffes/HotKey)**: Global hotkey (Carbon API)
 
 ## Structure
 
