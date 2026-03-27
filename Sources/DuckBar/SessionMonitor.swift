@@ -9,6 +9,9 @@ final class SessionMonitor {
     var lastRefresh = Date()
     var isLoading = false
 
+    var alertsEnabled: Bool = true
+    var alertThresholds: [Double] = [50, 80, 90]
+
     private var timer: Timer?
     private var heavyTimer: Timer?
     private let discovery = SessionDiscovery()
@@ -83,6 +86,9 @@ final class SessionMonitor {
 
         usageStats = usage
         isLoading = false
+        if alertsEnabled {
+            UsageAlertManager.shared.check(rateLimits: usageStats.rateLimits, thresholds: alertThresholds)
+        }
     }
 
     // MARK: - File System Watcher

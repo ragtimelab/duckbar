@@ -115,6 +115,36 @@ enum StatusBarItem: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+// MARK: - Main Section Visibility
+
+enum MainSection: String, CaseIterable, Codable, Identifiable {
+    case rateLimits
+    case fiveHourTokens
+    case oneWeekTokens
+    case chart
+    case modelUsage
+    case context
+
+    var id: String { rawValue }
+
+    func label(_ lang: AppLanguage) -> String {
+        switch (self, lang) {
+        case (.rateLimits, .korean): "사용 한도"
+        case (.rateLimits, .english): "Rate Limits"
+        case (.fiveHourTokens, .korean): "5시간 토큰"
+        case (.fiveHourTokens, .english): "5h Tokens"
+        case (.oneWeekTokens, .korean): "1주일 토큰"
+        case (.oneWeekTokens, .english): "1w Tokens"
+        case (.chart, .korean): "차트"
+        case (.chart, .english): "Chart"
+        case (.modelUsage, .korean): "모델별 사용량"
+        case (.modelUsage, .english): "Model Usage"
+        case (.context, .korean): "컨텍스트"
+        case (.context, .english): "Context"
+        }
+    }
+}
+
 // MARK: - Settings
 
 @Observable
@@ -158,6 +188,50 @@ final class AppSettings {
                 launchAtLogin = oldValue
             }
         }
+    }
+
+    var defaultChartTab: String {
+        didSet { save() }
+    }
+
+    var chartExpandedByDefault: Bool {
+        didSet { save() }
+    }
+
+    var visibleSections: Set<MainSection> {
+        didSet { save() }
+    }
+
+    var automaticUpdateCheck: Bool {
+        didSet {
+            save()
+            NotificationCenter.default.post(name: .automaticUpdateCheckChanged, object: nil)
+        }
+    }
+
+    var automaticUpdateInstall: Bool {
+        didSet {
+            save()
+            NotificationCenter.default.post(name: .automaticUpdateInstallChanged, object: nil)
+        }
+    }
+
+    var usageAlertsEnabled: Bool {
+        didSet { save() }
+    }
+
+    var activeProvider: Provider {
+        didSet { save() }
+    }
+
+    var alertThreshold1: Double {
+        didSet { save() }
+    }
+    var alertThreshold2: Double {
+        didSet { save() }
+    }
+    var alertThreshold3: Double {
+        didSet { save() }
     }
 
     private let defaults = UserDefaults.standard
@@ -205,6 +279,27 @@ final class AppSettings {
         }
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
+
+        defaultChartTab = defaults.string(forKey: "defaultChartTab") ?? "line"
+        chartExpandedByDefault = defaults.object(forKey: "chartExpandedByDefault") as? Bool ?? false
+
+        if let data = defaults.data(forKey: "visibleSections"),
+           let sections = try? JSONDecoder().decode([MainSection].self, from: data) {
+            visibleSections = Set(sections)
+        } else {
+            visibleSections = Set(MainSection.allCases)
+        }
+        automaticUpdateCheck = defaults.object(forKey: "automaticUpdateCheck") as? Bool ?? true
+        automaticUpdateInstall = defaults.object(forKey: "automaticUpdateInstall") as? Bool ?? false
+        usageAlertsEnabled = defaults.object(forKey: "usageAlertsEnabled") as? Bool ?? true
+        if let raw = defaults.string(forKey: "activeProvider"), let p = Provider(rawValue: raw) {
+            activeProvider = p
+        } else {
+            activeProvider = .claude
+        }
+        alertThreshold1 = defaults.object(forKey: "alertThreshold1") as? Double ?? 50
+        alertThreshold2 = defaults.object(forKey: "alertThreshold2") as? Double ?? 80
+        alertThreshold3 = defaults.object(forKey: "alertThreshold3") as? Double ?? 90
     }
 
     private func save() {
@@ -216,5 +311,17 @@ final class AppSettings {
         defaults.set(String(refreshInterval.rawValue), forKey: "refreshInterval")
         defaults.set(Int(hotkeyCode), forKey: "hotkeyCode")
         defaults.set(hotkeyModifiers, forKey: "hotkeyModifiers")
+        defaults.set(defaultChartTab, forKey: "defaultChartTab")
+        defaults.set(chartExpandedByDefault, forKey: "chartExpandedByDefault")
+        if let data = try? JSONEncoder().encode(Array(visibleSections)) {
+            defaults.set(data, forKey: "visibleSections")
+        }
+        defaults.set(automaticUpdateCheck, forKey: "automaticUpdateCheck")
+        defaults.set(automaticUpdateInstall, forKey: "automaticUpdateInstall")
+        defaults.set(usageAlertsEnabled, forKey: "usageAlertsEnabled")
+        defaults.set(activeProvider.rawValue, forKey: "activeProvider")
+        defaults.set(alertThreshold1, forKey: "alertThreshold1")
+        defaults.set(alertThreshold2, forKey: "alertThreshold2")
+        defaults.set(alertThreshold3, forKey: "alertThreshold3")
     }
 }

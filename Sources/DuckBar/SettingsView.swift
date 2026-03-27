@@ -27,6 +27,47 @@ struct SegmentButton: View {
     }
 }
 
+struct AlertThresholdField: View {
+    @Binding var value: Double
+    @State private var text: String = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 2) {
+            TextField("", text: $text)
+                .font(.system(size: 12, design: .monospaced))
+                .multilineTextAlignment(.center)
+                .frame(width: 36)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onAppear { text = value == 0 ? "" : String(Int(value)) }
+                .onChange(of: focused) {
+                    if !focused { commit() }
+                }
+                .onSubmit { commit() }
+            Text("%")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.primary.opacity(0.06))
+        )
+    }
+
+    private func commit() {
+        if let v = Double(text), v >= 0, v <= 100 {
+            value = v
+        } else if text.isEmpty {
+            value = 0
+        } else {
+            text = value == 0 ? "" : String(Int(value))
+        }
+    }
+}
+
 struct SettingsView: View {
     let settings: AppSettings
     var onHelp: (() -> Void)? = nil
@@ -68,6 +109,31 @@ struct SettingsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 0) {
+                // Provider
+                VStack(alignment: .leading, spacing: 8) {
+                    Label {
+                        Text(L.provider)
+                            .font(.system(size: 11, weight: .semibold))
+                    } icon: {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(.secondary)
+
+                    HStack(spacing: 6) {
+                        ForEach(Provider.allCases, id: \.rawValue) { p in
+                            SegmentButton(isSelected: settings.activeProvider == p,
+                                          title: p.displayName, fontSize: 12, padding: 6) {
+                                settings.activeProvider = p
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+
+                Divider()
+
                 // Language (.id로 언어 변경 시 전체 재렌더링 강제 — L.lang은 SwiftUI observation 밖)
                     VStack(alignment: .leading, spacing: 8) {
                         Label {
@@ -139,6 +205,147 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
+
+                    Divider()
+
+                    // 기본 차트 뷰
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label {
+                            Text(L.defaultChartView)
+                                .font(.system(size: 11, weight: .semibold))
+                        } icon: {
+                            Image(systemName: "chart.xyaxis.line")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(.secondary)
+
+                        HStack(spacing: 6) {
+                            SegmentButton(isSelected: settings.defaultChartTab == "line",
+                                          title: L.chartTabLine, fontSize: 12, padding: 6) {
+                                settings.defaultChartTab = "line"
+                            }
+                            SegmentButton(isSelected: settings.defaultChartTab == "heatmap",
+                                          title: L.chartTabHeatmap, fontSize: 12, padding: 6) {
+                                settings.defaultChartTab = "heatmap"
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 6)
+
+                    // 차트 항상 펼치기
+                    HStack {
+                        Label {
+                            Text(L.chartExpandedByDefault)
+                                .font(.system(size: 12))
+                        } icon: {
+                            Image(systemName: "chevron.down.circle")
+                                .font(.system(size: 10))
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: Binding(
+                            get: { settings.chartExpandedByDefault },
+                            set: { settings.chartExpandedByDefault = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+
+                    Divider()
+
+                    // 사용량 알림
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Label {
+                                Text(L.usageAlerts)
+                                    .font(.system(size: 12))
+                            } icon: {
+                                Image(systemName: "bell")
+                                    .font(.system(size: 10))
+                            }
+
+                            Spacer()
+
+                            Toggle("", isOn: Binding(
+                                get: { settings.usageAlertsEnabled },
+                                set: { newValue in
+                                    settings.usageAlertsEnabled = newValue
+                                    if newValue {
+                                        UsageAlertManager.shared.requestPermissionIfNeeded()
+                                    }
+                                }
+                            ))
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                        }
+
+                        if settings.usageAlertsEnabled {
+                            HStack(spacing: 6) {
+                                AlertThresholdField(value: Binding(get: { settings.alertThreshold1 }, set: { settings.alertThreshold1 = $0 }))
+                                AlertThresholdField(value: Binding(get: { settings.alertThreshold2 }, set: { settings.alertThreshold2 = $0 }))
+                                AlertThresholdField(value: Binding(get: { settings.alertThreshold3 }, set: { settings.alertThreshold3 = $0 }))
+                            }
+                            Text(L.usageAlertsHint)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider()
+
+                    // 자동 업데이트 확인
+                    HStack {
+                        Label {
+                            Text(L.automaticUpdateCheck)
+                                .font(.system(size: 12))
+                        } icon: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 10))
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: Binding(
+                            get: { settings.automaticUpdateCheck },
+                            set: { settings.automaticUpdateCheck = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, settings.automaticUpdateCheck ? 6 : 10)
+
+                    // 업데이트 자동 설치 (자동 확인이 켜진 경우에만 표시)
+                    if settings.automaticUpdateCheck {
+                        HStack {
+                            Label {
+                                Text(L.automaticUpdateInstall)
+                                    .font(.system(size: 12))
+                            } icon: {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 10))
+                            }
+
+                            Spacer()
+
+                            Toggle("", isOn: Binding(
+                                get: { settings.automaticUpdateInstall },
+                                set: { settings.automaticUpdateInstall = $0 }
+                            ))
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 10)
+                    }
 
                     Divider()
 
@@ -246,6 +453,52 @@ struct SettingsView: View {
                                               title: interval.displayName, fontSize: 11, padding: 5) {
                                     settings.refreshInterval = interval
                                 }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider()
+
+                    // 섹션 표시 옵션
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label {
+                            Text(L.visibleSections)
+                                .font(.system(size: 11, weight: .semibold))
+                        } icon: {
+                            Image(systemName: "square.3.layers.3d")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(.secondary)
+
+                        VStack(spacing: 2) {
+                            ForEach(MainSection.allCases) { section in
+                                let isOn = settings.visibleSections.contains(section)
+                                Button(action: {
+                                    if isOn {
+                                        settings.visibleSections.remove(section)
+                                    } else {
+                                        settings.visibleSections.insert(section)
+                                    }
+                                }) {
+                                    HStack {
+                                        Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(isOn ? .blue : .secondary)
+                                        Text(section.label(settings.language))
+                                            .font(.system(size: 12))
+                                        Spacer()
+                                    }
+                                    .padding(.vertical, 5)
+                                    .padding(.horizontal, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(isOn ? Color.blue.opacity(0.08) : Color.clear)
+                                    )
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }

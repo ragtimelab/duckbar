@@ -5,9 +5,16 @@ struct StatusMenuView: View {
     let settings: AppSettings
     let onQuit: () -> Void
 
-    private enum ViewMode { case main, settings, help }
+    private enum ViewMode { case main, settings, help, history, badges }
     @State private var viewMode: ViewMode = .main
-    @State private var showChart = false
+    @State private var showChart: Bool
+
+    init(monitor: SessionMonitor, settings: AppSettings, onQuit: @escaping () -> Void) {
+        self.monitor = monitor
+        self.settings = settings
+        self.onQuit = onQuit
+        _showChart = State(initialValue: settings.chartExpandedByDefault)
+    }
 
     private var s: CGFloat { settings.popoverSize.fontScale }
     private var popoverWidth: CGFloat { settings.popoverSize.width }
@@ -25,10 +32,17 @@ struct StatusMenuView: View {
                 HelpView(settings: settings) {
                     viewMode = .main
                 }
+            case .history:
+                NotificationHistoryView(onDone: { viewMode = .main })
+            case .badges:
+                BadgeView(onDone: { viewMode = .main }, stats: monitor.usageStats)
             }
         }
         .frame(width: popoverWidth)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            showChart = settings.chartExpandedByDefault
+        }
         .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
             viewMode = .settings
         }
@@ -48,23 +62,46 @@ struct StatusMenuView: View {
                 sessionListView
             }
 
-            Divider()
-            rateLimitsView
-            Divider()
-            tokenUsageView(title: L.fiveHourWindow, tokens: monitor.usageStats.fiveHourTokens)
-            Divider()
-            tokenUsageView(title: L.oneWeekWindow, tokens: monitor.usageStats.oneWeekTokens)
-
-            Divider()
-            chartToggleView
-
-            if !monitor.usageStats.modelUsages.isEmpty {
+            if settings.visibleSections.contains(.rateLimits) {
+                Divider()
+                rateLimitsView
+            }
+            if settings.visibleSections.contains(.fiveHourTokens) {
+                Divider()
+                switch settings.activeProvider {
+                case .claude:
+                    tokenUsageView(title: L.fiveHourWindow, tokens: monitor.usageStats.fiveHourTokens)
+                case .codex:
+                    codexTokenUsageView(title: L.fiveHourWindow, tokens: monitor.usageStats.codexFiveHourTokens)
+                case .both:
+                    tokenUsageView(title: "Claude · \(L.fiveHourWindow)", tokens: monitor.usageStats.fiveHourTokens)
+                    codexTokenUsageView(title: "Codex · \(L.fiveHourWindow)", tokens: monitor.usageStats.codexFiveHourTokens)
+                }
+            }
+            if settings.visibleSections.contains(.oneWeekTokens) {
+                Divider()
+                switch settings.activeProvider {
+                case .claude:
+                    tokenUsageView(title: L.oneWeekWindow, tokens: monitor.usageStats.oneWeekTokens)
+                case .codex:
+                    codexTokenUsageView(title: L.oneWeekWindow, tokens: monitor.usageStats.codexOneWeekTokens)
+                case .both:
+                    tokenUsageView(title: "Claude · \(L.oneWeekWindow)", tokens: monitor.usageStats.oneWeekTokens)
+                    codexTokenUsageView(title: "Codex · \(L.oneWeekWindow)", tokens: monitor.usageStats.codexOneWeekTokens)
+                }
+            }
+            if settings.visibleSections.contains(.chart) {
+                Divider()
+                chartToggleView
+            }
+            if settings.visibleSections.contains(.modelUsage) && !monitor.usageStats.modelUsages.isEmpty {
                 Divider()
                 modelUsageView
             }
-
-            Divider()
-            contextView
+            if settings.visibleSections.contains(.context) {
+                Divider()
+                contextView
+            }
 
             Spacer()
                 .frame(height: 10)
@@ -74,6 +111,12 @@ struct StatusMenuView: View {
             HStack(spacing: 0) {
                 MenuButton(title: L.settings, icon: "gearshape") {
                     viewMode = .settings
+                }
+                MenuButton(title: L.history, icon: "bell.badge") {
+                    viewMode = .history
+                }
+                MenuButton(title: L.badges, icon: "trophy") {
+                    viewMode = .badges
                 }
                 MenuButton(title: L.quit, icon: "power") {
                     onQuit()
@@ -89,6 +132,13 @@ struct StatusMenuView: View {
             Text(L.appTitle)
                 .font(.system(size: 13 * s, weight: .semibold))
             Spacer()
+            Button(action: { openShareCardPreview() }) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 11 * s))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(L.shareCardPreview)
             Button(action: { Task { await monitor.refreshAsync() } }) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11 * s))
@@ -99,6 +149,10 @@ struct StatusMenuView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private func openShareCardPreview() {
+        NotificationCenter.default.post(name: .openShareCard, object: nil)
     }
 
     // MARK: - Empty State
@@ -228,6 +282,11 @@ struct StatusMenuView: View {
                     .font(.system(size: 11 * s, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
+                Text(TokenUsage.formatTokens(tokens.totalTokens))
+                    .font(.system(size: 10 * s, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.primary)
+                Text("·")
+                    .foregroundStyle(.tertiary)
                 Text("\(tokens.requestCount) \(L.requests)")
                     .font(.system(size: 10 * s))
                     .foregroundStyle(.tertiary)
@@ -266,6 +325,40 @@ struct StatusMenuView: View {
         .padding(.vertical, 8)
     }
 
+    // MARK: - Codex Token Usage
+
+    private func codexTokenUsageView(title: String, tokens: CodexTokenUsage) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 11 * s, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(TokenUsage.formatTokens(tokens.totalTokens))
+                    .font(.system(size: 10 * s, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.primary)
+                Text("·")
+                    .foregroundStyle(.tertiary)
+                Text("\(tokens.requestCount) \(L.requests)")
+                    .font(.system(size: 10 * s))
+                    .foregroundStyle(.tertiary)
+                Text("·")
+                    .foregroundStyle(.tertiary)
+                Text(TokenUsage.formatCost(tokens.estimatedCostUSD))
+                    .font(.system(size: 10 * s, weight: .medium, design: .monospaced))
+                    .foregroundStyle(costColor(tokens.estimatedCostUSD))
+            }
+
+            HStack(spacing: 0) {
+                tokenPill(label: L.tokenIn, value: tokens.inputTokens, color: .blue)
+                tokenPill(label: L.tokenOut, value: tokens.outputTokens, color: .green)
+                tokenPill(label: L.tokenCacheRead, value: tokens.cachedInputTokens, color: .purple)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
     // MARK: - Chart Toggle
 
     private var chartToggleView: some View {
@@ -293,7 +386,9 @@ struct StatusMenuView: View {
 
             TokenChartView(
                 hourlyData: monitor.usageStats.hourlyData,
-                fontScale: s
+                weeklyHourlyData: monitor.usageStats.weeklyHourlyData,
+                fontScale: s,
+                defaultTab: settings.defaultChartTab
             )
             .frame(height: showChart ? nil : 0, alignment: .top)
             .clipped()

@@ -82,9 +82,44 @@ enum L {
     static var tokenChart: String { lang == .korean ? "토큰 (24시간)" : "Tokens (24h)" }
     static var costChart: String { lang == .korean ? "비용 (24시간)" : "Cost (24h)" }
     static var chart: String { lang == .korean ? "차트" : "Chart" }
+    static var chartTabLine: String { lang == .korean ? "라인" : "Line" }
+    static var chartTabHeatmap: String { lang == .korean ? "히트맵" : "Heatmap" }
+    static var defaultChartView: String { lang == .korean ? "기본 차트 뷰" : "Default Chart View" }
+    static var chartExpandedByDefault: String { lang == .korean ? "차트 항상 펼치기" : "Always Expand Chart" }
+    static var visibleSections: String { lang == .korean ? "표시할 섹션" : "Visible Sections" }
+    static var chartHeatmap: String { lang == .korean ? "활동 히트맵 (7일)" : "Activity Heatmap (7d)" }
+    static var heatmapLess: String { lang == .korean ? "적음" : "Less" }
+    static var heatmapMore: String { lang == .korean ? "많음" : "More" }
 
     // Settings (inline 로컬라이제이션 통합)
+    // Badges / 업적
+    static var badges: String { lang == .korean ? "업적" : "Achievements" }
+    static var badgesShareCard: String { lang == .korean ? "업적 공유 카드" : "Achievement Card" }
+    static var badgeNotAchieved: String { lang == .korean ? "미달성" : "Locked" }
+    static var badgeCategoryDailyPeak: String { lang == .korean ? "일간 최고 기록" : "Daily Peak" }
+    static var badgeCategoryStreak: String { lang == .korean ? "연속 사용" : "Streak" }
+    static var badgeCategoryTotalCost: String { lang == .korean ? "누적 비용" : "Total Cost" }
+    static var badgeShareCardTitle: String { lang == .korean ? "DuckBar 업적" : "DuckBar Achievements" }
+    static var badgeStatTotalTokens: String { lang == .korean ? "누적 토큰" : "Total Tokens" }
+    static var badgeStatTotalCost: String { lang == .korean ? "누적 비용" : "Total Cost" }
+    static var badgeStatStreak: String { lang == .korean ? "연속 사용" : "Streak" }
+    static func badgeStreakDays(_ n: Int) -> String { lang == .korean ? "\(n)일" : "\(n)d" }
+
     static var checkForUpdates: String { lang == .korean ? "업데이트 확인..." : "Check for Updates..." }
+    static var copyShareCard: String { lang == .korean ? "공유 카드 복사" : "Copy Share Card" }
+    static var shareCardPreview: String { lang == .korean ? "공유 카드 미리보기..." : "Share Card Preview..." }
+    static var shareCardCopy: String { lang == .korean ? "클립보드에 복사" : "Copy to Clipboard" }
+    static var shareCardCopied: String { lang == .korean ? "복사됨!" : "Copied!" }
+    static var shareCardSave: String { lang == .korean ? "PNG로 저장" : "Save as PNG" }
+    static var shareCardSaved: String { lang == .korean ? "저장됨!" : "Saved!" }
+    static var provider: String { lang == .korean ? "데이터 소스" : "Data Source" }
+    static var history: String { lang == .korean ? "알림" : "Alerts" }
+    static var historyClear: String { lang == .korean ? "지우기" : "Clear" }
+    static var historyEmpty: String { lang == .korean ? "알림 내역이 없습니다" : "No notifications yet" }
+    static var usageAlerts: String { lang == .korean ? "사용량 알림" : "Usage Alerts" }
+    static var usageAlertsHint: String { lang == .korean ? "0 입력 시 해당 알림 비활성화" : "Set to 0 to disable that alert" }
+    static var automaticUpdateCheck: String { lang == .korean ? "자동 업데이트 확인" : "Check for Updates Automatically" }
+    static var automaticUpdateInstall: String { lang == .korean ? "업데이트 자동 설치" : "Automatically Install Updates" }
     static var setHotkey: String { lang == .korean ? "설정" : "Set" }
     static var sizeSmall: String { lang == .korean ? "작게" : "Small" }
     static var sizeMedium: String { lang == .korean ? "보통" : "Medium" }
@@ -108,4 +143,7 @@ extension Notification.Name {
     static let stopRecordingHotkey = Notification.Name("StopRecordingHotkey")
     static let openSettings = Notification.Name("OpenSettings")
     static let openHelp = Notification.Name("OpenHelp")
+    static let openShareCard = Notification.Name("OpenShareCard")
+    static let automaticUpdateCheckChanged = Notification.Name("AutomaticUpdateCheckChanged")
+    static let automaticUpdateInstallChanged = Notification.Name("AutomaticUpdateInstallChanged")
 }

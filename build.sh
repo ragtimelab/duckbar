@@ -36,6 +36,7 @@ cp Resources/Info.plist "$APP_BUNDLE/Contents/"
 
 # Copy icon
 cp Resources/AppIcon.icns "$APP_BUNDLE/Contents/Resources/"
+cp Resources/duck_icon.png "$APP_BUNDLE/Contents/Resources/"
 
 # Copy Sparkle.framework
 mkdir -p "$APP_BUNDLE/Contents/Frameworks"

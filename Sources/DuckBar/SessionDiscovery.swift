@@ -80,6 +80,148 @@ struct SessionDiscovery {
         }
     }
 
+    // MARK: - All Time Stats (마일스톤용)
+
+    private func loadAllTimeStats(_ stats: inout UsageStats) {
+        var totalTokens = 0
+        var totalCost = 0.0
+        var seenRequests = Set<String>()
+
+        guard let projectDirs = try? fm.contentsOfDirectory(
+            at: projectsDir, includingPropertiesForKeys: nil
+        ) else { return }
+
+        for dir in projectDirs {
+            guard let files = try? fm.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: nil
+            ) else { continue }
+
+            for file in files where file.pathExtension == "jsonl" {
+                guard let content = try? String(contentsOf: file, encoding: .utf8) else { continue }
+
+                for line in content.components(separatedBy: .newlines) {
+                    guard !line.isEmpty,
+                          let lineData = line.data(using: .utf8),
+                          let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                          obj["type"] as? String == "assistant",
+                          let message = obj["message"] as? [String: Any],
+                          let usage = message["usage"] as? [String: Any]
+                    else { continue }
+
+                    if let reqId = obj["requestId"] as? String {
+                        if seenRequests.contains(reqId) { continue }
+                        seenRequests.insert(reqId)
+                    }
+
+                    let input = usage["input_tokens"] as? Int ?? 0
+                    let output = usage["output_tokens"] as? Int ?? 0
+                    let cacheCreate = usage["cache_creation_input_tokens"] as? Int ?? 0
+                    let cacheRead = usage["cache_read_input_tokens"] as? Int ?? 0
+
+                    totalTokens += input + output + cacheCreate + cacheRead
+                    totalCost += (Double(input) * 15.0
+                        + Double(output) * 75.0
+                        + Double(cacheCreate) * 18.75
+                        + Double(cacheRead) * 1.50) / 1_000_000.0
+                }
+            }
+        }
+
+        stats.allTimeTokens = totalTokens
+        stats.allTimeCostUSD = totalCost
+    }
+
+    // MARK: - Codex Usage
+
+    func loadCodexUsageStats(into stats: inout UsageStats) {
+        let home = fm.homeDirectoryForCurrentUser
+        let codexBase = home.appendingPathComponent(".codex")
+
+        let sessionDirs = [
+            codexBase.appendingPathComponent("sessions"),
+            codexBase.appendingPathComponent("archived_sessions")
+        ]
+
+        let now = Date()
+        let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
+        let oneWeekAgo = now.addingTimeInterval(-7 * 24 * 3600)
+
+        for baseDir in sessionDirs {
+            guard let yearDirs = try? fm.contentsOfDirectory(at: baseDir, includingPropertiesForKeys: nil) else { continue }
+            for yearDir in yearDirs {
+                guard let monthDirs = try? fm.contentsOfDirectory(at: yearDir, includingPropertiesForKeys: nil) else { continue }
+                for monthDir in monthDirs {
+                    guard let dayDirs = try? fm.contentsOfDirectory(at: monthDir, includingPropertiesForKeys: nil) else { continue }
+                    for dayDir in dayDirs {
+                        guard let files = try? fm.contentsOfDirectory(
+                            at: dayDir,
+                            includingPropertiesForKeys: [.contentModificationDateKey]
+                        ) else { continue }
+
+                        for file in files where file.pathExtension == "jsonl" {
+                            // 1주일 이내 수정된 파일만
+                            if let attrs = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
+                               let modDate = attrs.contentModificationDate,
+                               modDate < oneWeekAgo { continue }
+
+                            guard let content = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                            parseCodexJSONL(content, fiveHoursAgo: fiveHoursAgo, oneWeekAgo: oneWeekAgo, into: &stats)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func parseCodexJSONL(_ content: String, fiveHoursAgo: Date, oneWeekAgo: Date, into stats: inout UsageStats) {
+        var prevSnapshot: (Int, Int, Int, Int)? = nil  // 중복 스냅샷 방지
+
+        for line in content.components(separatedBy: .newlines) {
+            guard !line.isEmpty,
+                  let lineData = line.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any]
+            else { continue }
+
+            guard obj["type"] as? String == "event_msg",
+                  let payload = obj["payload"] as? [String: Any],
+                  payload["type"] as? String == "token_count",
+                  let info = payload["info"] as? [String: Any]
+            else { continue }
+
+            // last_token_usage 우선, 없으면 total_token_usage
+            let usageDict = info["last_token_usage"] as? [String: Any]
+                ?? info["total_token_usage"] as? [String: Any]
+            guard let usage = usageDict else { continue }
+
+            let input = usage["input_tokens"] as? Int ?? 0
+            let output = usage["output_tokens"] as? Int ?? 0
+            let cached = usage["cached_input_tokens"] as? Int ?? 0
+            let total = usage["total_tokens"] as? Int ?? 0
+
+            // 연속 동일 스냅샷 스킵
+            let snapshot = (input, output, cached, total)
+            if let prev = prevSnapshot, prev == snapshot { continue }
+            prevSnapshot = snapshot
+
+            guard let timestampStr = obj["timestamp"] as? String,
+                  let timestamp = parseISO8601(timestampStr)
+            else { continue }
+
+            if timestamp >= fiveHoursAgo {
+                stats.codexFiveHourTokens.inputTokens += input
+                stats.codexFiveHourTokens.outputTokens += output
+                stats.codexFiveHourTokens.cachedInputTokens += cached
+                stats.codexFiveHourTokens.requestCount += 1
+            }
+            if timestamp >= oneWeekAgo {
+                stats.codexOneWeekTokens.inputTokens += input
+                stats.codexOneWeekTokens.outputTokens += output
+                stats.codexOneWeekTokens.cachedInputTokens += cached
+                stats.codexOneWeekTokens.requestCount += 1
+            }
+        }
+    }
+
     // MARK: - Usage Stats (통합: 토큰 + API 리밋 + 컨텍스트)
 
     func loadUsageStats() -> UsageStats {
@@ -96,6 +238,12 @@ struct SessionDiscovery {
 
         // 4. stats-cache.json에서 모델별 사용량 로드
         loadModelUsageFromStatsCache(&stats)
+
+        // 5. Codex 사용량 로드
+        loadCodexUsageStats(into: &stats)
+
+        // 6. 전체 누적 집계 (마일스톤용)
+        loadAllTimeStats(&stats)
 
         return stats
     }
@@ -146,39 +294,80 @@ struct SessionDiscovery {
         return nil
     }
 
-    // MARK: - Model Usage from stats-cache.json
+    // MARK: - Model Usage from JSONL (1주일 기준)
 
     private func loadModelUsageFromStatsCache(_ stats: inout UsageStats) {
-        let cacheFile = claudeDir.appendingPathComponent("stats-cache.json")
-        guard let data = try? Data(contentsOf: cacheFile),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let modelUsage = json["modelUsage"] as? [String: [String: Any]]
-        else { return }
-
-        // 같은 shortName(Opus, Sonnet 등)의 모델 변형을 합산
+        let now = Date()
+        let oneWeekAgo = now.addingTimeInterval(-7 * 24 * 3600)
+        var seenRequests = Set<String>()
         var merged: [String: ModelUsage] = [:]
-        for (modelName, usage) in modelUsage {
-            var mu = ModelUsage(modelName: modelName)
-            mu.inputTokens = usage["inputTokens"] as? Int ?? 0
-            mu.outputTokens = usage["outputTokens"] as? Int ?? 0
-            mu.cacheReadTokens = usage["cacheReadInputTokens"] as? Int ?? 0
-            mu.cacheCreationTokens = usage["cacheCreationInputTokens"] as? Int ?? 0
 
-            let key = mu.shortName
-            if var existing = merged[key] {
-                existing.inputTokens += mu.inputTokens
-                existing.outputTokens += mu.outputTokens
-                existing.cacheReadTokens += mu.cacheReadTokens
-                existing.cacheCreationTokens += mu.cacheCreationTokens
-                merged[key] = existing
-            } else {
-                merged[key] = mu
+        guard let projectDirs = try? fm.contentsOfDirectory(
+            at: projectsDir, includingPropertiesForKeys: nil
+        ) else { return }
+
+        for dir in projectDirs {
+            guard let files = try? fm.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: [.contentModificationDateKey]
+            ) else { continue }
+
+            for jsonlFile in files where jsonlFile.pathExtension == "jsonl" {
+                if let attrs = try? jsonlFile.resourceValues(forKeys: [.contentModificationDateKey]),
+                   let modDate = attrs.contentModificationDate,
+                   modDate < oneWeekAgo { continue }
+
+                guard let content = try? String(contentsOf: jsonlFile, encoding: .utf8) else { continue }
+
+                for line in content.components(separatedBy: .newlines) {
+                    guard !line.isEmpty,
+                          let lineData = line.data(using: .utf8),
+                          let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                          obj["type"] as? String == "assistant",
+                          let message = obj["message"] as? [String: Any],
+                          let model = message["model"] as? String,
+                          !model.contains("synthetic"),
+                          let usage = message["usage"] as? [String: Any],
+                          let tsStr = obj["timestamp"] as? String,
+                          let ts = parseISO8601(tsStr),
+                          ts >= oneWeekAgo
+                    else { continue }
+
+                    if let reqId = obj["requestId"] as? String {
+                        if seenRequests.contains(reqId) { continue }
+                        seenRequests.insert(reqId)
+                    }
+
+                    let input = usage["input_tokens"] as? Int ?? 0
+                    let output = usage["output_tokens"] as? Int ?? 0
+                    let cacheCreate = usage["cache_creation_input_tokens"] as? Int ?? 0
+                    let cacheRead = usage["cache_read_input_tokens"] as? Int ?? 0
+
+                    var mu = merged[model] ?? ModelUsage(modelName: model)
+                    mu.inputTokens += input
+                    mu.outputTokens += output
+                    mu.cacheCreationTokens += cacheCreate
+                    mu.cacheReadTokens += cacheRead
+                    merged[model] = mu
+                }
             }
         }
-        stats.modelUsages = Array(merged.values)
 
-        // 토큰 많은 순으로 정렬
-        stats.modelUsages.sort { $0.totalTokens > $1.totalTokens }
+        // 같은 shortName(Opus, Sonnet, Haiku) 변형 합산
+        var byShortName: [String: ModelUsage] = [:]
+        for (_, mu) in merged {
+            let key = mu.shortName
+            if var existing = byShortName[key] {
+                existing.inputTokens += mu.inputTokens
+                existing.outputTokens += mu.outputTokens
+                existing.cacheCreationTokens += mu.cacheCreationTokens
+                existing.cacheReadTokens += mu.cacheReadTokens
+                byShortName[key] = existing
+            } else {
+                byShortName[key] = mu
+            }
+        }
+
+        stats.modelUsages = byShortName.values.sorted { $0.totalTokens > $1.totalTokens }
     }
 
     // MARK: - Token Usage from JSONL
@@ -191,6 +380,7 @@ struct SessionDiscovery {
 
         var seenRequests = Set<String>()
         var hourlyBuckets: [Date: HourlyTokenData] = [:]
+        var weeklyHourlyBuckets: [Date: HourlyTokenData] = [:]
 
         let calendar = Calendar.current
 
@@ -256,7 +446,7 @@ struct SessionDiscovery {
                         stats.oneWeekTokens.requestCount += 1
                     }
 
-                    // 24시간 시간별 버킷 (차트용)
+                    // 24시간 시간별 버킷 (라인차트용)
                     if timestamp >= twentyFourHoursAgo {
                         let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: timestamp))!
                         var bucket = hourlyBuckets[hourStart] ?? HourlyTokenData(id: hourStart)
@@ -267,11 +457,23 @@ struct SessionDiscovery {
                         bucket.requestCount += 1
                         hourlyBuckets[hourStart] = bucket
                     }
+
+                    // 7일 시간별 버킷 (히트맵용)
+                    if timestamp >= oneWeekAgo {
+                        let hourStart = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: timestamp))!
+                        var bucket = weeklyHourlyBuckets[hourStart] ?? HourlyTokenData(id: hourStart)
+                        bucket.inputTokens += input
+                        bucket.outputTokens += output
+                        bucket.cacheCreationTokens += cacheCreate
+                        bucket.cacheReadTokens += cacheRead
+                        bucket.requestCount += 1
+                        weeklyHourlyBuckets[hourStart] = bucket
+                    }
                 }
             }
         }
 
-        // 24시간 전체 시간대를 빈 버킷으로 채움 (빈 시간대도 0으로 표시)
+        // 24시간 전체 시간대를 빈 버킷으로 채움
         var allHours: [HourlyTokenData] = []
         let startHour = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: twentyFourHoursAgo))!
         let currentHour = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: now))!
@@ -281,6 +483,16 @@ struct SessionDiscovery {
             hour = calendar.date(byAdding: .hour, value: 1, to: hour)!
         }
         stats.hourlyData = allHours
+
+        // 7일 전체 시간대를 빈 버킷으로 채움 (히트맵용)
+        var allWeeklyHours: [HourlyTokenData] = []
+        let weekStartHour = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: oneWeekAgo))!
+        var weekHour = weekStartHour
+        while weekHour <= currentHour {
+            allWeeklyHours.append(weeklyHourlyBuckets[weekHour] ?? HourlyTokenData(id: weekHour))
+            weekHour = calendar.date(byAdding: .hour, value: 1, to: weekHour)!
+        }
+        stats.weeklyHourlyData = allWeeklyHours
     }
 
     // MARK: - Rate Limits from OMC Cache

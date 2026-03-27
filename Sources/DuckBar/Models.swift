@@ -1,5 +1,21 @@
 import Foundation
 
+// MARK: - Provider
+
+enum Provider: String, CaseIterable, Codable {
+    case claude
+    case codex
+    case both
+
+    var displayName: String {
+        switch self {
+        case .claude: "Claude"
+        case .codex: "Codex"
+        case .both: "Both"
+        }
+    }
+}
+
 // MARK: - Session State
 
 enum SessionState: String, Codable, CaseIterable {
@@ -251,6 +267,26 @@ struct HourlyTokenData: Identifiable, Equatable {
     }
 }
 
+// MARK: - Codex Token Usage (세션 합산)
+
+struct CodexTokenUsage: Equatable {
+    var inputTokens: Int = 0
+    var outputTokens: Int = 0
+    var cachedInputTokens: Int = 0
+    var requestCount: Int = 0
+
+    var totalTokens: Int {
+        inputTokens + outputTokens + cachedInputTokens
+    }
+
+    /// 모델별 단가 미적용 추정치 (gpt-4.1 기준: input $2/1M, output $8/1M, cached $0.5/1M)
+    var estimatedCostUSD: Double {
+        (Double(inputTokens) * 2.0
+            + Double(outputTokens) * 8.0
+            + Double(cachedInputTokens) * 0.5) / 1_000_000.0
+    }
+}
+
 // MARK: - Usage Stats (통합)
 
 struct UsageStats: Equatable {
@@ -259,5 +295,65 @@ struct UsageStats: Equatable {
     var rateLimits = RateLimits()
     var contextInfo = ContextInfo()
     var modelUsages: [ModelUsage] = []
-    var hourlyData: [HourlyTokenData] = []
+    var hourlyData: [HourlyTokenData] = []         // 24시간 (라인차트)
+    var weeklyHourlyData: [HourlyTokenData] = []   // 7일 (히트맵)
+
+    // Codex
+    var codexFiveHourTokens = CodexTokenUsage()
+    var codexOneWeekTokens = CodexTokenUsage()
+
+    // 전체 누적 (마일스톤용)
+    var allTimeTokens: Int = 0
+    var allTimeCostUSD: Double = 0
+}
+
+// MARK: - Notification History
+
+struct NotificationHistoryItem: Codable, Identifiable, Equatable {
+    let id: String
+    let type: HistoryItemType
+    let title: String
+    let body: String
+    let date: Date
+
+    enum HistoryItemType: String, Codable {
+        case milestone
+        case weeklyReport
+        case usageAlert
+    }
+}
+
+// MARK: - Badge (업적 뱃지)
+
+struct Badge: Identifiable, Equatable {
+    let id: String
+    let icon: String
+    let name: String
+    let description: String
+    let category: BadgeCategory
+    var achievedAt: Date?
+
+    var isAchieved: Bool { achievedAt != nil }
+
+    enum BadgeCategory {
+        case dailyPeak   // 일간 최고 기록
+        case streak      // 연속 사용
+        case totalCost   // 누적 비용
+    }
+}
+
+// MARK: - Weekly Report
+
+struct WeeklyReport: Equatable {
+    var weekStart: Date = Date()       // 지난주 월요일
+    var totalTokens: Int = 0
+    var totalCostUSD: Double = 0
+    var prevWeekTokens: Int = 0
+    var prevWeekCostUSD: Double = 0
+    var busiestDay: String = ""        // "월", "화" 등
+    var busiestDayTokens: Int = 0
+    var dailyTokens: [String: Int] = [:] // "월"~"일"
+
+    var tokenDelta: Int { totalTokens - prevWeekTokens }
+    var costDelta: Double { totalCostUSD - prevWeekCostUSD }
 }
